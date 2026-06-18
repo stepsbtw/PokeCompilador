@@ -1,29 +1,6 @@
-efetividade eletrico contra agua = 2.0;
-efetividade agua contra eletrico = 1.0;
-
 dano = (ataque + poder - defesa) * efetividade;
 
-pokemon Pikachu : eletrico {
-    vida = 200;
-    ataque = 80;
-    defesa = 50;
-}
-
-pokemon Squirtle : agua {
-    vida = 220;
-    ataque = 70;
-    defesa = 70;
-}
-
-golpe choque_trovao : eletrico {
-    poder = 60;
-}
-
-golpe jato_agua : agua {
-    poder = 50;
-}
-
-batalha Pikachu contra Squirtle {
-    Pikachu usa choque_trovao;
-    Squirtle usa jato_agua;
+batalha Pikachu(eletrico, 200, 80, 50) contra Squirtle(agua, 220, 70, 70) {
+    turno { Pikachu usa choque(eletrico, 60); Squirtle usa jato_agua(agua, 50); }
+    turno { Pikachu usa choque(eletrico, 60); Squirtle usa jato_agua(agua, 50); }
 }

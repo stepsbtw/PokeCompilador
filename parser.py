@@ -1,888 +1,243 @@
-from copy import deepcopy
-
+```python
 import ply.yacc as yacc
+from lexer import tokens, lexer
 
-from lexer import analisador_lexico, tokens
+def numero(valor):
+    return {"tipo": "numero", "valor": valor}
 
-tabela_efetividade = {}
-tabela_pokemon = {}
-tabela_golpes = {}
+def atributo(nome):
+    return {"tipo": "atributo", "nome": nome}
 
-formula_dano = None
+def operacao(op, esquerda, direita):
+    return {"tipo": "operacao", "op": op, "esquerda": esquerda, "direita": direita}
 
-erros_semanticos = []
-
-
-def reiniciar_estado():
-    global formula_dano
-
-    tabela_efetividade.clear()
-    tabela_pokemon.clear()
-    tabela_golpes.clear()
-    erros_semanticos.clear()
-
-    formula_dano = None
-
-
-def erro_semantico(mensagem):
-    erros_semanticos.append(mensagem)
-
-    print(
-        f"[ERRO SEMÂNTICO] {mensagem}"
-    )
-
-def criar_no_numero(valor):
-    return {
-        "no": "numero",
-        "valor": valor,
-    }
-
-
-def criar_no_atributo(nome):
-    return {
-        "no": "atributo",
-        "nome": nome,
-    }
-
-
-def criar_no_operacao(
-    operador,
-    esquerda,
-    direita,
-):
-    return {
-        "no": "operacao_binaria",
-        "operador": operador,
-        "esquerda": esquerda,
-        "direita": direita,
-    }
-
-
-def associar_a_esquerda(
-    inicial,
-    operacoes,
-):
-    resultado = inicial
-
-    for operador, operando in operacoes:
-        resultado = criar_no_operacao(
-            operador,
-            resultado,
-            operando,
-        )
-
+def associar_esquerda(inicio, operacoes):
+    resultado = inicio
+    for op, valor in operacoes:
+        resultado = operacao(op, resultado, valor)
     return resultado
 
-def avaliar_expressao(
-    no,
-    contexto,
-):
-    if no["no"] == "numero":
+def avaliar(no, contexto):
+    if no["tipo"] == "numero":
         return no["valor"]
+    if no["tipo"] == "atributo":
+        return contexto[no["nome"]]
+    esquerda = avaliar(no["esquerda"], contexto)
+    direita = avaliar(no["direita"], contexto)
+    if no["op"] == "+": return esquerda + direita
+    if no["op"] == "-": return esquerda - direita
+    if no["op"] == "*": return esquerda * direita
+    if direita == 0: raise ZeroDivisionError("Divisão por zero na fórmula de dano.")
+    return esquerda / direita
 
-    if no["no"] == "atributo":
-        nome = no["nome"]
+def calcular_efetividade(tipo_golpe, tipo_defensor):
+    tabela = {
+        ("eletrico", "agua"): 2.0,
+        ("agua", "eletrico"): 1.0,
+        ("agua", "fogo"): 2.0,
+        ("fogo", "agua"): 0.5,
+        ("fogo", "fogo"): 0.5,
+        ("agua", "agua"): 0.5,
+        ("eletrico", "eletrico"): 0.5
+    }
+    return tabela.get((tipo_golpe, tipo_defensor), 1.0)
 
-        if nome not in contexto:
-            raise ValueError(
-                f"O atributo '{nome}' não está "
-                "disponível no contexto."
-            )
-
-        return contexto[nome]
-
-    if no["no"] == "operacao_binaria":
-        esquerda = avaliar_expressao(
-            no["esquerda"],
-            contexto,
-        )
-
-        direita = avaliar_expressao(
-            no["direita"],
-            contexto,
-        )
-
-        operador = no["operador"]
-
-        if operador == "+":
-            return esquerda + direita
-
-        if operador == "-":
-            return esquerda - direita
-
-        if operador == "*":
-            return esquerda * direita
-
-        if operador == "/":
-            if direita == 0:
-                raise ZeroDivisionError(
-                    "Divisão por zero "
-                    "na fórmula de dano."
-                )
-
-            return esquerda / direita
-
-    raise ValueError(
-        "Nó inválido na árvore da expressão."
-    )
-
-
-def obter_efetividade(
-    tipo_golpe,
-    tipo_defensor,
-):
-    return tabela_efetividade.get(
-        (
-            tipo_golpe,
-            tipo_defensor,
-        ),
-        1.0,
-    )
-
-def validar_acao(
-    acao,
-    participantes,
-):
-    usuario = acao["usuario"]
-    golpe = acao["golpe"]
-
-    valido = True
-
-    if usuario not in participantes:
-        erro_semantico(
-            f"O Pokémon '{usuario}' "
-            "não participa da batalha."
-        )
-
-        valido = False
-
-    if usuario not in tabela_pokemon:
-        erro_semantico(
-            f"O Pokémon '{usuario}' "
-            "não foi declarado."
-        )
-
-        valido = False
-
-    if golpe not in tabela_golpes:
-        erro_semantico(
-            f"O golpe '{golpe}' "
-            "não foi declarado."
-        )
-
-        valido = False
-
-    return valido
-
-def executar_acao(
-    acao,
-    defensor_nome,
-    estado_batalha,
-):
-    atacante_nome = acao["usuario"]
-    golpe_nome = acao["golpe"]
-
-    atacante = estado_batalha[
-        atacante_nome
-    ]
-
-    defensor = estado_batalha[
-        defensor_nome
-    ]
-
-    golpe = tabela_golpes[
-        golpe_nome
-    ]
-
-    efetividade = obter_efetividade(
-        golpe["tipo"],
-        defensor["tipo"],
-    )
-
+def calcular_dano(formula, atacante, defensor, golpe):
     contexto = {
         "ataque": atacante["ataque"],
         "defesa": defensor["defesa"],
         "poder": golpe["poder"],
-        "efetividade": efetividade,
+        "efetividade": calcular_efetividade(golpe["tipo"], defensor["tipo"])
     }
+    valor = avaliar(formula, contexto)
+    return max(0, int(valor)), contexto
 
-    try:
-        dano_calculado = avaliar_expressao(
-            formula_dano,
-            contexto,
-        )
+def executar_batalha(formula, batalha):
+    p1, p2 = batalha["pokemon1"].copy(), batalha["pokemon2"].copy()
+    participantes = {p1["nome"]: p1, p2["nome"]: p2}
 
-    except (
-        ValueError,
-        ZeroDivisionError,
-    ) as erro:
-        erro_semantico(
-            str(erro)
-        )
-
+    if p1["nome"] == p2["nome"]:
+        print("[ERRO SEMÂNTICO] Um Pokémon não pode batalhar contra ele mesmo.")
         return None
 
-    dano_aplicado = max(
-        0,
-        int(dano_calculado),
-    )
+    print("=" * 40)
+    print(f"BATALHA: {p1['nome']} CONTRA {p2['nome']}")
+    print("=" * 40)
 
-    vida_anterior = defensor["vida"]
+    turnos_executados = []
 
-    defensor["vida"] = max(
-        0,
-        defensor["vida"] - dano_aplicado,
-    )
+    for numero_turno, turno in enumerate(batalha["turnos"], 1):
+        if p1["vida"] == 0 or p2["vida"] == 0:
+            break
 
-    print(
-        f"\n[AÇÃO] {atacante_nome} usou "
-        f"{golpe_nome} em {defensor_nome}."
-    )
+        usuarios = [acao["usuario"] for acao in turno]
+        if len(set(usuarios)) != 2 or set(usuarios) != set(participantes):
+            print(f"[ERRO SEMÂNTICO] O turno {numero_turno} deve possuir uma ação de cada participante.")
+            return None
 
-    print(
-        f"[VALORES] "
-        f"ataque={atacante['ataque']} | "
-        f"poder={golpe['poder']} | "
-        f"defesa={defensor['defesa']} | "
-        f"efetividade={efetividade}"
-    )
+        print(f"\nTURNO {numero_turno}")
+        resultados = []
 
-    print(
-        f"[DANO] "
-        f"calculado={dano_calculado} | "
-        f"aplicado={dano_aplicado}"
-    )
+        for acao in turno:
+            atacante = participantes[acao["usuario"]]
+            defensor = p2 if atacante["nome"] == p1["nome"] else p1
+            dano, contexto = calcular_dano(formula, atacante, defensor, acao["golpe"])
+            resultados.append({"atacante": atacante, "defensor": defensor, "golpe": acao["golpe"], "dano": dano, "contexto": contexto})
+            print(f"{atacante['nome']} usou {acao['golpe']['nome']}: dano = {dano}")
 
-    print(
-        f"[VIDA] {defensor_nome}: "
-        f"{vida_anterior} -> {defensor['vida']}"
-    )
+        for resultado in resultados:
+            resultado["defensor"]["vida"] = max(0, resultado["defensor"]["vida"] - resultado["dano"])
 
-    return {
-        "atacante": atacante_nome,
-        "defensor": defensor_nome,
-        "golpe": golpe_nome,
-        "dano": dano_aplicado,
-        "vida_restante": defensor["vida"],
-    }
+        print(f"{p1['nome']}: {p1['vida']} de vida")
+        print(f"{p2['nome']}: {p2['vida']} de vida")
+        turnos_executados.append(resultados)
 
-def executar_batalha(batalha):
-    pokemon_1 = batalha["pokemon_1"]
-    pokemon_2 = batalha["pokemon_2"]
+    if p1["vida"] > p2["vida"]: vencedor = p1["nome"]
+    elif p2["vida"] > p1["vida"]: vencedor = p2["nome"]
+    else: vencedor = "empate"
 
-    valida = True
-
-    if pokemon_1 not in tabela_pokemon:
-        erro_semantico(
-            f"O Pokémon '{pokemon_1}' "
-            "não foi declarado."
-        )
-
-        valida = False
-
-    if pokemon_2 not in tabela_pokemon:
-        erro_semantico(
-            f"O Pokémon '{pokemon_2}' "
-            "não foi declarado."
-        )
-
-        valida = False
-
-    if pokemon_1 == pokemon_2:
-        erro_semantico(
-            "Um Pokémon não pode batalhar "
-            "contra ele mesmo."
-        )
-
-        valida = False
-
-    if formula_dano is None:
-        erro_semantico(
-            "A fórmula de dano não foi declarada."
-        )
-
-        valida = False
-
-    participantes = [
-        pokemon_1,
-        pokemon_2,
-    ]
-
-    for acao in batalha["acoes"]:
-        if not validar_acao(
-            acao,
-            participantes,
-        ):
-            valida = False
-
-    usuarios = [
-        acao["usuario"]
-        for acao in batalha["acoes"]
-    ]
-
-    if set(usuarios) != set(participantes):
-        erro_semantico(
-            "A batalha deve conter uma ação "
-            "de cada participante."
-        )
-
-        valida = False
-
-    if not valida:
-        return {
-            "valida": False,
-            "acoes": [],
-        }
-
-    estado_batalha = {
-        pokemon_1: deepcopy(
-            tabela_pokemon[pokemon_1]
-        ),
-
-        pokemon_2: deepcopy(
-            tabela_pokemon[pokemon_2]
-        ),
-    }
-
-    print(
-        "\n========================================"
-    )
-
-    print(
-        f"BATALHA: {pokemon_1} CONTRA {pokemon_2}"
-    )
-
-    print(
-        "========================================"
-    )
-
-    resultados = []
-
-    for acao in batalha["acoes"]:
-        atacante = acao["usuario"]
-
-        if atacante == pokemon_1:
-            defensor = pokemon_2
-        else:
-            defensor = pokemon_1
-
-        resultado = executar_acao(
-            acao,
-            defensor,
-            estado_batalha,
-        )
-
-        resultados.append(
-            resultado
-        )
-
-    print(
-        "\n========================================"
-    )
-
-    print(
-        "RESULTADO"
-    )
-
-    print(
-        "========================================"
-    )
-
-    print(
-        f"{pokemon_1}: "
-        f"{estado_batalha[pokemon_1]['vida']} VIDA"
-    )
-
-    print(
-        f"{pokemon_2}: "
-        f"{estado_batalha[pokemon_2]['vida']} VIDA"
-    )
+    print("\n" + "=" * 40)
+    print(f"RESULTADO: {vencedor.upper()}")
+    print("=" * 40)
 
     return {
-        "valida": True,
-
-        "vida_pokemon_1":
-            estado_batalha[pokemon_1]["vida"],
-
-        "vida_pokemon_2":
-            estado_batalha[pokemon_2]["vida"],
-
-        "acoes": resultados,
+        "pokemon1": p1,
+        "pokemon2": p2,
+        "turnos": turnos_executados,
+        "vencedor": vencedor
     }
 
-
-# ============================================================
-# PROGRAMA
-#
-# P → RE D DEC B
-# ============================================================
-
+# S → D B
 def p_programa(p):
-    """
-    programa : regras_efetividade regra_dano declaracoes batalha
-    """
-
-    resultado_batalha = executar_batalha(
-        p[4]
-    )
-
+    "programa : definicao_dano batalha"
     p[0] = {
-        "no": "programa",
-        "regras_efetividade": p[1],
-        "regra_dano": p[2],
-        "declaracoes": p[3],
-        "batalha": p[4],
-        "resultado_batalha":
-            resultado_batalha,
-        "erros_semanticos":
-            list(erros_semanticos),
+        "tipo": "programa",
+        "formula": p[1],
+        "batalha": p[2],
+        "resultado": executar_batalha(p[1], p[2])
     }
 
-
-# ============================================================
-# REGRAS DE EFETIVIDADE
-#
-# RE → R RE'
-# RE' → R RE' | ε
-# ============================================================
-
-def p_regras_efetividade(p):
-    """
-    regras_efetividade : regra_efetividade regras_efetividade_linha
-    """
-
-    p[0] = [
-        p[1]
-    ] + p[2]
-
-
-def p_regras_efetividade_linha_mais(p):
-    """
-    regras_efetividade_linha : regra_efetividade regras_efetividade_linha
-    """
-
-    p[0] = [
-        p[1]
-    ] + p[2]
-
-
-def p_regras_efetividade_linha_vazia(p):
-    """
-    regras_efetividade_linha :
-    """
-
-    p[0] = []
-
-
-def p_regra_efetividade(p):
-    """
-    regra_efetividade : EFETIVIDADE tipo_pokemon CONTRA tipo_pokemon IGUAL NUMERO PONTO_VIRGULA
-    """
-
-    tipo_atacante = p[2]
-    tipo_defensor = p[4]
-    multiplicador = p[6]
-
-    chave = (
-        tipo_atacante,
-        tipo_defensor,
-    )
-
-    if chave in tabela_efetividade:
-        erro_semantico(
-            f"A efetividade de "
-            f"'{tipo_atacante}' contra "
-            f"'{tipo_defensor}' "
-            "já foi declarada."
-        )
-
-    else:
-        tabela_efetividade[
-            chave
-        ] = multiplicador
-
-    p[0] = {
-        "no": "regra_efetividade",
-        "tipo_atacante": tipo_atacante,
-        "tipo_defensor": tipo_defensor,
-        "multiplicador": multiplicador,
-    }
-
-
-# ============================================================
-# REGRA DE DANO
-#
 # D → dano = E ;
-# ============================================================
+def p_definicao_dano(p):
+    "definicao_dano : DANO IGUAL expressao PONTO_VIRGULA"
+    p[0] = p[3]
 
-def p_regra_dano(p):
-    """
-    regra_dano : DANO IGUAL expressao PONTO_VIRGULA
-    """
-
-    global formula_dano
-
-    formula_dano = p[3]
-
-    p[0] = {
-        "no": "regra_dano",
-        "expressao": p[3],
-    }
-
-
-# ============================================================
-# EXPRESSÕES
-#
-# E  → T E'
-# E' → + T E' | - T E' | ε
-#
-# T  → F T'
-# T' → * F T' | / F T' | ε
-#
-# F → num | AT | ( E )
-# ============================================================
-
+# E → TR E'
 def p_expressao(p):
-    """
-    expressao : termo expressao_linha
-    """
+    "expressao : termo expressao_linha"
+    p[0] = associar_esquerda(p[1], p[2])
 
-    p[0] = associar_a_esquerda(
-        p[1],
-        p[2],
-    )
-
-
+# E' → + TR E' | - TR E' | ε
 def p_expressao_linha_mais(p):
-    """
-    expressao_linha : MAIS termo expressao_linha
-    """
-
-    p[0] = [
-        (
-            "+",
-            p[2],
-        )
-    ] + p[3]
-
+    "expressao_linha : MAIS termo expressao_linha"
+    p[0] = [("+", p[2])] + p[3]
 
 def p_expressao_linha_menos(p):
-    """
-    expressao_linha : MENOS termo expressao_linha
-    """
-
-    p[0] = [
-        (
-            "-",
-            p[2],
-        )
-    ] + p[3]
-
+    "expressao_linha : MENOS termo expressao_linha"
+    p[0] = [("-", p[2])] + p[3]
 
 def p_expressao_linha_vazia(p):
-    """
-    expressao_linha :
-    """
-
+    "expressao_linha :"
     p[0] = []
 
-
+# TR → F TR'
 def p_termo(p):
-    """
-    termo : fator termo_linha
-    """
+    "termo : fator termo_linha"
+    p[0] = associar_esquerda(p[1], p[2])
 
-    p[0] = associar_a_esquerda(
-        p[1],
-        p[2],
-    )
-
-
+# TR' → * F TR' | / F TR' | ε
 def p_termo_linha_vezes(p):
-    """
-    termo_linha : VEZES fator termo_linha
-    """
-
-    p[0] = [
-        (
-            "*",
-            p[2],
-        )
-    ] + p[3]
-
+    "termo_linha : VEZES fator termo_linha"
+    p[0] = [("*", p[2])] + p[3]
 
 def p_termo_linha_dividido(p):
-    """
-    termo_linha : DIVIDIDO fator termo_linha
-    """
-
-    p[0] = [
-        (
-            "/",
-            p[2],
-        )
-    ] + p[3]
-
+    "termo_linha : DIVIDIDO fator termo_linha"
+    p[0] = [("/", p[2])] + p[3]
 
 def p_termo_linha_vazia(p):
-    """
-    termo_linha :
-    """
-
+    "termo_linha :"
     p[0] = []
 
-
+# F → num | AT | ( E )
 def p_fator_numero(p):
-    """
-    fator : NUMERO
-    """
-
-    p[0] = criar_no_numero(
-        p[1]
-    )
-
+    "fator : NUMERO"
+    p[0] = numero(p[1])
 
 def p_fator_atributo(p):
-    """
-    fator : atributo
-    """
-
-    p[0] = criar_no_atributo(
-        p[1]
-    )
-
+    "fator : atributo"
+    p[0] = atributo(p[1])
 
 def p_fator_parenteses(p):
-    """
-    fator : ABRE_PARENTESES expressao FECHA_PARENTESES
-    """
-
+    "fator : ABRE_PARENTESES expressao FECHA_PARENTESES"
     p[0] = p[2]
 
-
+# AT → ataque | defesa | poder | efetividade
 def p_atributo(p):
-    """
-    atributo : ATAQUE
-             | DEFESA
-             | PODER
-             | EFETIVIDADE
-    """
-
+    """atributo : ATAQUE
+                | DEFESA
+                | PODER
+                | EFETIVIDADE"""
     p[0] = p[1]
 
+# B → batalha POK contra POK { LT }
+def p_batalha(p):
+    "batalha : BATALHA pokemon CONTRA pokemon ABRE_CHAVES lista_turnos FECHA_CHAVES"
+    p[0] = {"tipo": "batalha", "pokemon1": p[2], "pokemon2": p[4], "turnos": p[6]}
 
-# ============================================================
-# DECLARAÇÕES
-#
-# DEC  → DC DEC'
-# DEC' → DC DEC' | ε
-# DC   → DP | DG
-# ============================================================
+# POK → id ( TP , num , num , num )
+def p_pokemon(p):
+    "pokemon : ID ABRE_PARENTESES tipo VIRGULA NUMERO VIRGULA NUMERO VIRGULA NUMERO FECHA_PARENTESES"
+    p[0] = {"nome": p[1], "tipo": p[3], "vida": p[5], "ataque": p[7], "defesa": p[9]}
+    if p[5] <= 0 or p[7] <= 0 or p[9] <= 0:
+        print(f"[ERRO SEMÂNTICO] Os atributos de {p[1]} devem ser maiores que zero.")
 
-def p_declaracoes(p):
-    """
-    declaracoes : declaracao declaracoes_linha
-    """
+# LT → TU LT'
+def p_lista_turnos(p):
+    "lista_turnos : turno lista_turnos_linha"
+    p[0] = [p[1]] + p[2]
 
-    p[0] = [
-        p[1]
-    ] + p[2]
+# LT' → TU LT' | ε
+def p_lista_turnos_linha_turno(p):
+    "lista_turnos_linha : turno lista_turnos_linha"
+    p[0] = [p[1]] + p[2]
 
-
-def p_declaracoes_linha_mais(p):
-    """
-    declaracoes_linha : declaracao declaracoes_linha
-    """
-
-    p[0] = [
-        p[1]
-    ] + p[2]
-
-
-def p_declaracoes_linha_vazia(p):
-    """
-    declaracoes_linha :
-    """
-
+def p_lista_turnos_linha_vazia(p):
+    "lista_turnos_linha :"
     p[0] = []
 
+# TU → turno { A A }
+def p_turno(p):
+    "turno : TURNO ABRE_CHAVES acao acao FECHA_CHAVES"
+    p[0] = [p[3], p[4]]
 
-def p_declaracao(p):
-    """
-    declaracao : declaracao_pokemon
-               | declaracao_golpe
-    """
-
-    p[0] = p[1]
-
-def p_declaracao_pokemon(p):
-    """
-    declaracao_pokemon : POKEMON ID DOIS_PONTOS tipo_pokemon ABRE_CHAVES atributos_pokemon FECHA_CHAVES
-    """
-
-    nome = p[2]
-    tipo = p[4]
-    atributos = p[6]
-
-    if nome in tabela_pokemon:
-        erro_semantico(
-            f"O Pokémon '{nome}' "
-            "já foi declarado."
-        )
-
-    else:
-        tabela_pokemon[nome] = {
-            "nome": nome,
-            "tipo": tipo,
-            "vida": atributos["vida"],
-            "ataque": atributos["ataque"],
-            "defesa": atributos["defesa"],
-        }
-
-    p[0] = {
-        "no": "declaracao_pokemon",
-        "nome": nome,
-        "tipo": tipo,
-        "atributos": atributos,
-    }
-
-
-def p_atributos_pokemon(p):
-    """
-    atributos_pokemon : VIDA IGUAL NUMERO PONTO_VIRGULA ATAQUE IGUAL NUMERO PONTO_VIRGULA DEFESA IGUAL NUMERO PONTO_VIRGULA
-    """
-
-    atributos = {
-        "vida": p[3],
-        "ataque": p[7],
-        "defesa": p[11],
-    }
-
-    for nome, valor in atributos.items():
-        if valor <= 0:
-            erro_semantico(
-                f"O atributo '{nome}' "
-                "deve ser maior que zero."
-            )
-
-    p[0] = atributos
-
-def p_declaracao_golpe(p):
-    """
-    declaracao_golpe : GOLPE ID DOIS_PONTOS tipo_pokemon ABRE_CHAVES atributos_golpe FECHA_CHAVES
-    """
-
-    nome = p[2]
-    tipo = p[4]
-    atributos = p[6]
-
-    if nome in tabela_golpes:
-        erro_semantico(
-            f"O golpe '{nome}' "
-            "já foi declarado."
-        )
-
-    else:
-        tabela_golpes[nome] = {
-            "nome": nome,
-            "tipo": tipo,
-            "poder": atributos["poder"],
-        }
-
-    p[0] = {
-        "no": "declaracao_golpe",
-        "nome": nome,
-        "tipo": tipo,
-        "atributos": atributos,
-    }
-
-
-def p_atributos_golpe(p):
-    """
-    atributos_golpe : PODER IGUAL NUMERO PONTO_VIRGULA
-    """
-
-    if p[3] <= 0:
-        erro_semantico(
-            "O poder do golpe deve "
-            "ser maior que zero."
-        )
-
-    p[0] = {
-        "poder": p[3],
-    }
-
-def p_tipo_pokemon(p):
-    """
-    tipo_pokemon : FOGO
-                 | AGUA
-                 | ELETRICO
-    """
-
-    p[0] = p[1]
-
-
-# ============================================================
-# BATALHA
-#
-# B → batalha id contra id { A A }
-# A → id usa id ;
-# ============================================================
-
-def p_batalha(p):
-    """
-    batalha : BATALHA ID CONTRA ID ABRE_CHAVES acao acao FECHA_CHAVES
-    """
-
-    p[0] = {
-        "no": "batalha",
-        "pokemon_1": p[2],
-        "pokemon_2": p[4],
-        "acoes": [
-            p[6],
-            p[7],
-        ],
-    }
-
-
+# A → id usa G ;
 def p_acao(p):
-    """
-    acao : ID USA ID PONTO_VIRGULA
-    """
+    "acao : ID USA golpe PONTO_VIRGULA"
+    p[0] = {"usuario": p[1], "golpe": p[3]}
 
-    p[0] = {
-        "no": "acao",
-        "usuario": p[1],
-        "golpe": p[3],
-    }
+# G → id ( TP , num )
+def p_golpe(p):
+    "golpe : ID ABRE_PARENTESES tipo VIRGULA NUMERO FECHA_PARENTESES"
+    p[0] = {"nome": p[1], "tipo": p[3], "poder": p[5]}
+    if p[5] <= 0:
+        print(f"[ERRO SEMÂNTICO] O poder do golpe {p[1]} deve ser maior que zero.")
+
+# TP → fogo | agua | eletrico
+def p_tipo(p):
+    """tipo : FOGO
+            | AGUA
+            | ELETRICO"""
+    p[0] = p[1]
 
 def p_error(p):
-    if p is None:
-        print(
-            "[ERRO SINTÁTICO] "
-            "Fim inesperado da entrada."
-        )
-
+    if p:
+        print(f"[ERRO SINTÁTICO] Token inesperado '{p.value}' na linha {p.lineno}.")
     else:
-        print(
-            f"[ERRO SINTÁTICO] "
-            f"Token inesperado '{p.value}' "
-            f"na linha {p.lineno}."
-        )
+        print("[ERRO SINTÁTICO] Fim inesperado do programa.")
 
-analisador_sintatico = yacc.yacc(
-    start="programa",
-    write_tables=False,
-    debug=False,
-)
+parser = yacc.yacc(start="programa", write_tables=False, debug=False)
 
-
-def analisar_codigo(codigo_fonte):
-    reiniciar_estado()
-
-    analisador_lexico.lineno = 1
-
-    return analisador_sintatico.parse(
-        codigo_fonte,
-        lexer=analisador_lexico,
-    )
+def analisar(codigo):
+    lexer.lineno = 1
+    return parser.parse(codigo, lexer=lexer)
+```
