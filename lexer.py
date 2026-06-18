@@ -1,4 +1,3 @@
-```python
 import ply.lex as lex
 
 reservadas = {
@@ -63,4 +62,3 @@ def t_error(t):
     t.lexer.skip(1)
 
 lexer = lex.lex()
-```

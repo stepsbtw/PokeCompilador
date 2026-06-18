@@ -1,4 +1,3 @@
-```python
 import ply.yacc as yacc
 from lexer import tokens, lexer
 
@@ -240,4 +239,3 @@ parser = yacc.yacc(start="programa", write_tables=False, debug=False)
 def analisar(codigo):
     lexer.lineno = 1
     return parser.parse(codigo, lexer=lexer)
-```
