@@ -1,34 +1,40 @@
 # PokeLang
 
-Linguagem de domínio específico desenvolvida para a disciplina de **Compiladores** utilizando **Python** e **PLY**.
+A **PokeLang** é uma linguagem de domínio específico para representar batalhas simplificadas entre Pokémon.
 
-A PokeLang permite definir uma fórmula de dano e executar uma batalha simplificada entre dois Pokémon com um ou mais turnos.
+A linguagem permite:
+
+* definir uma fórmula de dano;
+* declarar dois Pokémon;
+* definir golpes;
+* executar um ou mais turnos;
+* calcular o dano e determinar o vencedor.
 
 ## Autores
 
 * Caio Passos Torkst Ferreira
 * Daniel Salvador Motta
 
----
+## Gerador utilizado
 
-# Estrutura do projeto
+O projeto foi desenvolvido em **Python** utilizando o **PLY**:
 
-* `lexer.py`: análise léxica;
-* `parser.py`: análise sintática e semântica;
-* `main.py`: execução do programa;
-* `exemplo.poke`: programa de exemplo;
-* `requirements.txt`: dependências.
+```text
+ply.lex  → analisador léxico
+ply.yacc → analisador sintático
+```
 
 ---
 
 # 1. Análise léxica
 
-A análise léxica é realizada pelo módulo `ply.lex`. Ela transforma o código-fonte em uma sequência de tokens.
+A análise léxica transforma o código-fonte em uma sequência de tokens.
 
 ## Palavras reservadas
 
 ```text
-dano, batalha, contra, turno, usa, ataque, defesa, poder, efetividade, fogo, agua, eletrico
+dano, batalha, contra, turno, usa, ataque, defesa, poder,
+efetividade, fogo, agua, eletrico
 ```
 
 ## Expressões regulares
@@ -57,37 +63,29 @@ Espaços e tabulações são ignorados:
 [ \t\r]+
 ```
 
-Os identificadores são comparados com a tabela de palavras reservadas:
+Exemplos de reconhecimento:
 
 ```text
-Pikachu → ID
-choque → ID
-batalha → BATALHA
-turno → TURNO
-ataque → ATAQUE
+Pikachu   → ID
+choque    → ID
+batalha   → BATALHA
+turno     → TURNO
+ataque    → ATAQUE
+200       → NUMERO
 ```
 
-Um caractere que não corresponde a nenhuma expressão regular gera um erro léxico.
+Caracteres que não pertencem à linguagem geram erro léxico.
 
 ---
 
 # 2. Análise sintática
 
-A análise sintática é realizada pelo módulo `ply.yacc`. Ela verifica se a sequência de tokens pertence à gramática da PokeLang.
+A análise sintática verifica se a sequência de tokens pertence à gramática da PokeLang.
 
 ## Definição formal
 
 ```text
 G = (V, Σ, P, S)
-```
-
-Em que:
-
-```text
-V = conjunto de símbolos não terminais
-Σ = conjunto de símbolos terminais
-P = conjunto de produções
-S = símbolo inicial
 ```
 
 ## Não terminais
@@ -96,34 +94,34 @@ S = símbolo inicial
 V = { S, D, E, E', TR, TR', F, AT, B, POK, LT, LT', TU, A, G, TP }
 ```
 
-| Símbolo | Significado                    |
-| ------- | ------------------------------ |
-| `S`     | programa                       |
-| `D`     | definição da fórmula de dano   |
-| `E`     | expressão                      |
-| `E'`    | continuação da expressão       |
-| `TR`    | termo                          |
-| `TR'`   | continuação do termo           |
-| `F`     | fator                          |
-| `AT`    | atributo                       |
-| `B`     | batalha                        |
-| `POK`   | Pokémon                        |
-| `LT`    | lista de turnos                |
-| `LT'`   | continuação da lista de turnos |
-| `TU`    | turno                          |
-| `A`     | ação                           |
-| `G`     | golpe                          |
-| `TP`    | tipo                           |
+| Símbolo | Significado                  |
+| ------- | ---------------------------- |
+| `S`     | programa                     |
+| `D`     | definição da fórmula de dano |
+| `E`     | expressão                    |
+| `E'`    | continuação da expressão     |
+| `TR`    | termo                        |
+| `TR'`   | continuação do termo         |
+| `F`     | fator                        |
+| `AT`    | atributo                     |
+| `B`     | batalha                      |
+| `POK`   | Pokémon                      |
+| `LT`    | lista de turnos              |
+| `LT'`   | continuação da lista         |
+| `TU`    | turno                        |
+| `A`     | ação                         |
+| `G`     | golpe                        |
+| `TP`    | tipo                         |
 
 ## Terminais
 
 ```text
-Σ = { dano, batalha, contra, turno, usa, ataque, defesa, poder, efetividade, fogo, agua, eletrico, id, num, +, -, *, /, =, ,, ;, {, }, (, ) }
-```
-
-```text
-id = identificador
-num = número inteiro ou real
+Σ = {
+    dano, batalha, contra, turno, usa,
+    ataque, defesa, poder, efetividade,
+    fogo, agua, eletrico,
+    id, num, +, -, *, /, =, ,, ;, {, }, (, )
+}
 ```
 
 ## Símbolo inicial
@@ -132,36 +130,37 @@ num = número inteiro ou real
 S
 ```
 
-## Gramática
+## Produções
 
 ```text
 S → D B
 D → dano = E ;
+
 E → TR E'
 E' → + TR E' | - TR E' | ε
+
 TR → F TR'
 TR' → * F TR' | / F TR' | ε
+
 F → num | AT | ( E )
 AT → ataque | defesa | poder | efetividade
+
 B → batalha POK contra POK { LT }
 POK → id ( TP , num , num , num )
+
 LT → TU LT'
 LT' → TU LT' | ε
+
 TU → turno { A A }
 A → id usa G ;
 G → id ( TP , num )
+
 TP → fogo | agua | eletrico
 ```
 
 O símbolo `ε` representa a cadeia vazia.
 
-## Estrutura do Pokémon
-
-```text
-POK → id ( TP , num , num , num )
-```
-
-A ordem dos valores é:
+## Estrutura de um Pokémon
 
 ```text
 id(tipo, vida, ataque, defesa)
@@ -173,13 +172,7 @@ Exemplo:
 Pikachu(eletrico, 200, 80, 50)
 ```
 
-## Estrutura do golpe
-
-```text
-G → id ( TP , num )
-```
-
-A ordem dos valores é:
+## Estrutura de um golpe
 
 ```text
 id(tipo, poder)
@@ -193,15 +186,15 @@ choque(eletrico, 60)
 
 ## Precedência e associatividade
 
-A expressão possui três níveis:
+A gramática possui três níveis:
 
 ```text
-E = expressão
-TR = termo
-F = fator
+E  → soma e subtração
+TR → multiplicação e divisão
+F  → números, atributos e parênteses
 ```
 
-Multiplicação e divisão são reconhecidas em `TR`, enquanto soma e subtração são reconhecidas em `E`.
+Assim:
 
 ```text
 ataque + poder * efetividade
@@ -213,7 +206,7 @@ ataque + poder * efetividade
 ataque + (poder * efetividade)
 ```
 
-As operações do mesmo nível são avaliadas da esquerda para a direita:
+Operações do mesmo nível são avaliadas da esquerda para a direita:
 
 ```text
 ataque - poder - defesa
@@ -225,14 +218,14 @@ ataque - poder - defesa
 (ataque - poder) - defesa
 ```
 
-## Repetição dos turnos
+## Repetição de turnos
 
 ```text
 LT → TU LT'
 LT' → TU LT' | ε
 ```
 
-A produção `LT → TU LT'` garante pelo menos um turno.
+A batalha deve possuir pelo menos um turno.
 
 Cada aplicação de:
 
@@ -240,7 +233,7 @@ Cada aplicação de:
 LT' → TU LT'
 ```
 
-adiciona um novo turno.
+adiciona outro turno.
 
 A produção:
 
@@ -250,20 +243,9 @@ LT' → ε
 
 encerra a lista.
 
-Para dois turnos:
+---
 
-```text
-LT
-├── TU
-└── LT'
-    ├── TU
-    └── LT'
-        └── ε
-```
-
-## Programa de exemplo
-
-O arquivo `exemplo.poke` utiliza dois turnos para demonstrar a repetição durante a execução.
+# Programa de exemplo
 
 ```text
 dano = (ataque + poder - defesa) * efetividade;
@@ -274,9 +256,11 @@ batalha Pikachu(eletrico, 200, 80, 50) contra Squirtle(agua, 220, 70, 70) {
 }
 ```
 
-## Sentença utilizada na árvore de derivação
+---
 
-Para evitar uma árvore excessivamente grande, a árvore utiliza uma sentença aceita pela linguagem contendo apenas um turno.
+# Árvore de derivação
+
+Para manter a árvore legível, é utilizada uma sentença com apenas um turno:
 
 ```text
 dano = (ataque + poder - defesa) * efetividade;
@@ -286,13 +270,7 @@ batalha Pikachu(eletrico, 200, 80, 50) contra Squirtle(agua, 220, 70, 70) {
 }
 ```
 
-Nesse caso, a lista deriva como:
-
-```text
-LT → TU LT' → TU ε
-```
-
-## Árvore de derivação
+Árvore:
 
 ```text
 S
@@ -300,19 +278,7 @@ S
 │   ├── dano
 │   ├── =
 │   ├── E
-│   │   ├── TR
-│   │   │   ├── F
-│   │   │   │   ├── (
-│   │   │   │   ├── E
-│   │   │   │   │   ├── ataque
-│   │   │   │   │   ├── +
-│   │   │   │   │   ├── poder
-│   │   │   │   │   ├── -
-│   │   │   │   │   └── defesa
-│   │   │   │   └── )
-│   │   │   ├── *
-│   │   │   └── efetividade
-│   │   └── ε
+│   │   └── (ataque + poder - defesa) * efetividade
 │   └── ;
 │
 └── B
@@ -338,78 +304,74 @@ S
     │   │   ├── A
     │   │   │   ├── id → Pikachu
     │   │   │   ├── usa
-    │   │   │   ├── G
-    │   │   │   │   ├── id → choque
-    │   │   │   │   ├── TP → eletrico
-    │   │   │   │   └── num → 60
-    │   │   │   └── ;
+    │   │   │   └── G → choque(eletrico, 60)
     │   │   ├── A
     │   │   │   ├── id → Squirtle
     │   │   │   ├── usa
-    │   │   │   ├── G
-    │   │   │   │   ├── id → jato_agua
-    │   │   │   │   ├── TP → agua
-    │   │   │   │   └── num → 50
-    │   │   │   └── ;
+    │   │   │   └── G → jato_agua(agua, 50)
     │   │   └── }
     │   └── LT'
     │       └── ε
     └── }
 ```
 
-A árvore possui dois ramos principais:
-
-```text
-S
-├── D → fórmula de dano
-└── B → batalha
-```
-
 ---
 
 # 3. Análise semântica
 
-A análise semântica atribui significado às estruturas reconhecidas pelo analisador sintático.
+A análise semântica atribui significado às estruturas reconhecidas pela gramática.
 
-Ela é responsável por armazenar a fórmula, calcular o dano, atualizar as vidas e determinar o vencedor.
+Ela é responsável por:
+
+* armazenar a fórmula de dano;
+* construir os Pokémon e os golpes;
+* calcular a efetividade;
+* calcular o dano;
+* atualizar as vidas;
+* determinar o vencedor.
 
 ## Tabela de produções e ações semânticas
 
-| Produção                                        | Ação semântica                                           |
-| ----------------------------------------------- | -------------------------------------------------------- |
-| `S → D B`                                       | Passa a fórmula produzida por `D` para a execução de `B` |
-| `D → dano = E ;`                                | Armazena a árvore da expressão de dano                   |
-| `E → TR E'`                                     | Constrói somas e subtrações                              |
-| `E' → + TR E'`                                  | Adiciona uma soma                                        |
-| `E' → - TR E'`                                  | Adiciona uma subtração                                   |
-| `E' → ε`                                        | Finaliza a expressão                                     |
-| `TR → F TR'`                                    | Constrói multiplicações e divisões                       |
-| `TR' → * F TR'`                                 | Adiciona uma multiplicação                               |
-| `TR' → / F TR'`                                 | Adiciona uma divisão                                     |
-| `TR' → ε`                                       | Finaliza o termo                                         |
-| `F → num`                                       | Produz um número                                         |
-| `F → AT`                                        | Produz um atributo                                       |
-| `F → ( E )`                                     | Propaga a expressão interna                              |
-| `AT → ataque \| defesa \| poder \| efetividade` | Produz o atributo correspondente                         |
-| `B → batalha POK1 contra POK2 { LT }`           | Inicializa os participantes e executa os turnos          |
-| `POK → id ( TP, num1, num2, num3 )`             | Produz nome, tipo, vida, ataque e defesa                 |
-| `LT → TU LT'`                                   | Cria a lista de turnos                                   |
-| `LT' → TU LT'`                                  | Adiciona um turno                                        |
-| `LT' → ε`                                       | Finaliza a lista                                         |
-| `TU → turno { A1 A2 }`                          | Calcula os danos e atualiza as vidas                     |
-| `A → id usa G ;`                                | Produz o usuário e o golpe                               |
-| `G → id ( TP, num )`                            | Produz nome, tipo e poder                                |
-| `TP → fogo \| agua \| eletrico`                 | Produz o tipo correspondente                             |
+| Produção                               | Ação semântica                                                       |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `S → D B`                              | `S.resultado = executar_batalha(D.formula, B)`                       |
+| `D → dano = E ;`                       | `D.formula = E.valor`                                                |
+| `E → TR E'`                            | `E.valor = aplicar(TR.valor, E'.operacoes)`                          |
+| `E' → + TR E'1`                        | `E'.operacoes = [+, TR.valor] + E'1.operacoes`                       |
+| `E' → - TR E'1`                        | `E'.operacoes = [-, TR.valor] + E'1.operacoes`                       |
+| `E' → ε`                               | `E'.operacoes = []`                                                  |
+| `TR → F TR'`                           | `TR.valor = aplicar(F.valor, TR'.operacoes)`                         |
+| `TR' → * F TR'1`                       | `TR'.operacoes = [*, F.valor] + TR'1.operacoes`                      |
+| `TR' → / F TR'1`                       | `TR'.operacoes = [/, F.valor] + TR'1.operacoes`                      |
+| `TR' → ε`                              | `TR'.operacoes = []`                                                 |
+| `F → num`                              | `F.valor = num.valor`                                                |
+| `F → AT`                               | `F.valor = AT.valor`                                                 |
+| `F → ( E )`                            | `F.valor = E.valor`                                                  |
+| `AT → ataque`                          | `AT.valor = atacante.ataque`                                         |
+| `AT → defesa`                          | `AT.valor = defensor.defesa`                                         |
+| `AT → poder`                           | `AT.valor = golpe.poder`                                             |
+| `AT → efetividade`                     | `AT.valor = efetividade(golpe.tipo, defensor.tipo)`                  |
+| `POK → id ( TP , num1 , num2 , num3 )` | `POK = {nome: id, tipo: TP, vida: num1, ataque: num2, defesa: num3}` |
+| `G → id ( TP , num )`                  | `G = {nome: id, tipo: TP, poder: num}`                               |
+| `A → id usa G ;`                       | `A = {usuario: id, golpe: G}`                                        |
+| `TU → turno { A1 A2 }`                 | `TU.acoes = [A1, A2]`                                                |
+| `LT → TU LT'`                          | `LT.lista = [TU] + LT'.lista`                                        |
+| `LT' → TU LT'1`                        | `LT'.lista = [TU] + LT'1.lista`                                      |
+| `LT' → ε`                              | `LT'.lista = []`                                                     |
+| `B → batalha POK1 contra POK2 { LT }`  | `B = {pok1: POK1, pok2: POK2, turnos: LT.lista}`                     |
+| `TP → fogo`                            | `TP.valor = fogo`                                                    |
+| `TP → agua`                            | `TP.valor = agua`                                                    |
+| `TP → eletrico`                        | `TP.valor = eletrico`                                                |
 
 ## Comunicação entre os ramos
 
-Na produção:
+A produção inicial é:
 
 ```text
 S → D B
 ```
 
-o ramo `D` produz a árvore da fórmula:
+O ramo `D` produz a fórmula:
 
 ```text
 D.formula = (ataque + poder - defesa) * efetividade
@@ -418,16 +380,14 @@ D.formula = (ataque + poder - defesa) * efetividade
 O ramo `B` produz a batalha:
 
 ```text
-B = participantes + turnos + ações
+B = Pokémon + turnos + ações
 ```
 
-A ação semântica do nó `S` reúne os dois resultados:
+O símbolo inicial reúne os dois resultados:
 
 ```text
 S.resultado = executar_batalha(D.formula, B)
 ```
-
-Portanto, a fórmula não passa diretamente de um ramo para o outro. O nó pai `S` recebe os resultados de `D` e `B` e envia a fórmula para a execução da batalha.
 
 ## Regra de efetividade
 
@@ -443,83 +403,95 @@ efetividade(outros casos) = 1.0
 dano = (ataque + poder - defesa) * efetividade
 ```
 
-O dano aplicado não pode ser negativo:
+O dano não pode ser negativo:
 
 ```text
-dano_aplicado = max(0, dano)
+dano = max(0, dano)
 ```
 
-## Árvore sintática abstrata da fórmula
+## Código intermediário
+
+Para uma ação do atacante contra o defensor:
 
 ```text
-*
-├── -
-│   ├── +
-│   │   ├── ataque
-│   │   └── poder
-│   └── defesa
-└── efetividade
-```
-
-## Árvore anotada da fórmula
-
-Para a ação:
-
-```text
-Pikachu usa choque(eletrico, 60);
-```
-
-o contexto é:
-
-```text
-ataque = 80
-poder = 60
-defesa = 70
-efetividade = 2.0
-```
-
-A árvore anotada é:
-
-```text
-* = 140
-├── - = 70
-│   ├── + = 140
-│   │   ├── ataque = 80
-│   │   └── poder = 60
-│   └── defesa = 70
-└── efetividade = 2.0
-```
-
-```text
-dano = (80 + 60 - 70) * 2.0 = 140
+t1 = atacante.ataque + golpe.poder
+t2 = t1 - defensor.defesa
+t3 = t2 * efetividade(golpe.tipo, defensor.tipo)
+dano = max(0, t3)
 ```
 
 ## Atualização das vidas
 
-As duas ações são calculadas com os valores existentes no início do turno.
+As duas ações de um turno são calculadas antes da atualização das vidas:
 
 ```text
-vida_saida_P1 = max(0, vida_entrada_P1 - dano_P2)
-vida_saida_P2 = max(0, vida_entrada_P2 - dano_P1)
+pok1.vida = max(0, pok1.vida - dano_pok2)
+pok2.vida = max(0, pok2.vida - dano_pok1)
 ```
 
-A saída de um turno é utilizada como entrada do próximo:
+A vida resultante de um turno é utilizada no turno seguinte.
+
+---
+
+# Árvore de derivação anotada
+
+Para a ação de Pikachu contra Squirtle:
 
 ```text
-TU2.vida_entrada_P1 = TU1.vida_saida_P1
-TU2.vida_entrada_P2 = TU1.vida_saida_P2
+S
+├── D
+│   └── formula = (ataque + poder - defesa) * efetividade
+│
+└── B
+    ├── POK1
+    │   ├── nome = Pikachu
+    │   ├── tipo = eletrico
+    │   ├── vida = 200
+    │   ├── ataque = 80
+    │   └── defesa = 50
+    │
+    ├── POK2
+    │   ├── nome = Squirtle
+    │   ├── tipo = agua
+    │   ├── vida = 220
+    │   ├── ataque = 70
+    │   └── defesa = 70
+    │
+    └── TU
+        ├── A1
+        │   ├── atacante.ataque = 80
+        │   ├── golpe.poder = 60
+        │   ├── defensor.defesa = 70
+        │   ├── efetividade = 2.0
+        │   ├── t1 = 80 + 60 = 140
+        │   ├── t2 = 140 - 70 = 70
+        │   └── dano1 = 70 * 2.0 = 140
+        │
+        ├── A2
+        │   ├── atacante.ataque = 70
+        │   ├── golpe.poder = 50
+        │   ├── defensor.defesa = 50
+        │   ├── efetividade = 1.0
+        │   ├── t3 = 70 + 50 = 120
+        │   ├── t4 = 120 - 50 = 70
+        │   └── dano2 = 70 * 1.0 = 70
+        │
+        ├── Pikachu.vida = 200 - 70 = 130
+        └── Squirtle.vida = 220 - 140 = 80
 ```
+
+---
+
+# Resultado dos turnos
 
 ## Primeiro turno
 
 ```text
-dano_Pikachu = (80 + 60 - 70) * 2.0 = 140
-dano_Squirtle = (70 + 50 - 50) * 1.0 = 70
-```
+dano de Pikachu = 140
+dano de Squirtle = 70
 
-```text
-Pikachu.vida = 200 - 70 = 130
-Squirtle.vida = 220 - 140 = 80
+Pikachu.vida = 130
+Squirtle.vida = 80
 ```
 
 ## Segundo turno
@@ -529,49 +501,32 @@ Pikachu.vida = max(0, 130 - 70) = 60
 Squirtle.vida = max(0, 80 - 140) = 0
 ```
 
-## Árvore anotada da execução
+## Vencedor
 
 ```text
-S
-├── D
-│   └── expressão = (ataque + poder - defesa) * efetividade
-│
-└── B
-    ├── POK1 = { nome = Pikachu, tipo = eletrico, vida = 200, ataque = 80, defesa = 50 }
-    ├── POK2 = { nome = Squirtle, tipo = agua, vida = 220, ataque = 70, defesa = 70 }
-    │
-    └── LT
-        ├── TU1
-        │   ├── A1 = { usuario = Pikachu, golpe = choque, dano = 140 }
-        │   ├── A2 = { usuario = Squirtle, golpe = jato_agua, dano = 70 }
-        │   ├── vida_Pikachu = 130
-        │   └── vida_Squirtle = 80
-        │
-        └── LT'
-            ├── TU2
-            │   ├── A1 = { usuario = Pikachu, golpe = choque, dano = 140 }
-            │   ├── A2 = { usuario = Squirtle, golpe = jato_agua, dano = 70 }
-            │   ├── vida_Pikachu = 60
-            │   ├── vida_Squirtle = 0
-            │   └── vencedor = Pikachu
-            │
-            └── LT'
-                └── ε
+Pikachu.vida = 60
+Squirtle.vida = 0
+
+vencedor = Pikachu
 ```
-
-## Determinação do vencedor
-
-```text
-se vida_P1 = 0 e vida_P2 > 0, vencedor = P2
-se vida_P2 = 0 e vida_P1 > 0, vencedor = P1
-se vida_P1 = 0 e vida_P2 = 0, resultado = empate
-```
-
-Caso todos os turnos terminem sem um Pokémon chegar a zero, vence aquele que possuir mais vida restante.
 
 ---
 
 # Execução
+
+Instalação:
+
+```bash
+pip install ply
+```
+
+Execução:
+
+```bash
+python main.py exemplo.poke
+```
+
+Saída esperada:
 
 ```text
 ========================================
@@ -594,7 +549,6 @@ Squirtle: 0 de vida
 VENCEDOR: Pikachu
 ========================================
 ```
-
 ---
 
 # Uso de inteligência artificial
@@ -614,4 +568,3 @@ Inclusive, inicialmente, o ChatGPT focou em realizar todos os cálculos de forma
 E esse foi o principal impasse, manter a linguagem complexa o suficiente, mas ainda limitada para que possamos abrir as árvores de derivação manualmente.
 
 <img width="730" height="336" alt="image" src="https://github.com/user-attachments/assets/fe3d34b6-1e73-417f-8bb7-dcd507cff11e" />
-
