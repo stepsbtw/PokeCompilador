@@ -7,7 +7,7 @@ A PokeLang permite definir uma fórmula de dano e executar uma batalha simplific
 ## Autores
 
 * Caio Passos Torkst Ferreira
-* Daniel [INSERIR SOBRENOME]
+* Daniel Salvador Motta
 
 ---
 
